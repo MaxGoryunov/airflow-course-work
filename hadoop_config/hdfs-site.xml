@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+    <property>
+        <name>dfs.replication</name>
+        <value>1</value>
+    </property>
+    <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>/opt/hadoop/data/namenode</value>
+    </property>
+    <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>/opt/hadoop/data/datanode</value>
+    </property>
+    <property>
+        <name>dfs.namenode.rpc-address</name>
+        <value>namenode:9000</value>
+    </property>
+    <property>
+        <name>dfs.namenode.http-address</name>
+        <value>0.0.0.0:9870</value>
+    </property>
+    <property>
+        <name>dfs.datanode.hostname</name>
+        <value>datanode</value>
+    </property>
+    <property>
+        <name>dfs.datanode.address</name>
+        <value>0.0.0.0:9866</value>
+    </property>
+    <property>
+        <name>dfs.datanode.http.address</name>
+        <value>0.0.0.0:9864</value>
+    </property>
+    <property>
+        <name>dfs.datanode.ipc.address</name>
+        <value>0.0.0.0:9867</value>
+    </property>
+</configuration>
+<!-- <property>
+  <name>dfs.blocksize</name>
+  <value>134217728</value>
+</property>
+<property>
+  <name>dfs.replication</name>
+  <value>3</value>
+</property>
+<property>
+  <name>dfs.namenode.name.dir</name>
+  <value>file:/usr/local/hadoop/hdfs/namenode</value>
+</property>
+<property>
+  <name>dfs.datanode.du.reserved</name>
+  <value>10737418240</value>
+</property>
+<property>
+  <name>mapreduce.job.reduces</name>
+  <value>50</value>
+</property>
+<property>
+  <name>mapreduce.tasktracker.map.tasks.maximum</name>
+  <value>2</value>
+</property>
+<property>
+  <name>mapreduce.map.maxattempts</name>
+  <value>4</value>
+</property>
+<property>
+  <name>mapreduce.reduce.maxinflight</name>
+  <value>2</value>
+</property> -->

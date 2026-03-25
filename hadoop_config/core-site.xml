@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+    <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://namenode:9000</value>
+    </property>
+    <property>
+        <name>hadoop.tmp.dir</name>
+        <value>/opt/hadoop/tmp</value>
+    </property>
+    <property>
+        <name>hadoop.http.staticuser.user</name>
+        <value>root</value>
+    </property>
+    <!-- <property>
+        <name>hadoop.common.configuration.max.resources</name>
+        <value>4096</value>
+    </property>
+    <property>
+        <name>fs.default.name</name>
+        <value>hdfs://namenode:9000</value>
+    </property>
+    <property>
+        <name>hadoop.common.configuration.threads</name>
+        <value>40</value>
+    </property> -->
+</configuration>

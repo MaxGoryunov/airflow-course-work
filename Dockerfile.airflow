@@ -1,0 +1,15 @@
+FROM apache/airflow:2.8.1
+
+USER root
+
+RUN apt-get update && \
+    apt-get install -y openjdk-8-jdk wget && \
+    wget https://downloads.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz && \
+    tar -xzf hadoop-3.3.5.tar.gz && \
+    mv hadoop-3.3.5 /opt/hadoop && \
+    rm hadoop-3.3.5.tar.gz
+
+ENV HADOOP_HOME=/opt/hadoop
+ENV PATH=$PATH:$HADOOP_HOME/bin
+
+USER airflow

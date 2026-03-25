@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: airflow_postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - airflow_network
+      # - bigdata_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  airflow-webserver:
+    image: apache/airflow:2.8.1
+    container_name: airflow_webserver
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD:-airflow}@postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-secret}
+      AIRFLOW__WEBSERVER__RBAC: 'True'
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./scripts:/opt/airflow/scripts
+      - ./init-airflow.sh:/init-airflow.sh
+    ports:
+      - "8081:8080"
+    command: >
+      bash -c "/init-airflow.sh && airflow webserver"
+    networks:
+      - airflow_network
+      - bigdata_network
+    restart: on-failure
+
+  airflow-scheduler:
+    image: apache/airflow:2.8.1
+    container_name: airflow_scheduler
+    depends_on:
+      - airflow-webserver
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD:-airflow}@postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+    command: scheduler
+    networks:
+      - airflow_network
+      - bigdata_network
+    restart: on-failure
+  namenode:
+    image: apache/hadoop:3.3.5
+    container_name: namenode
+    hostname: namenode
+    user: root
+    volumes:
+      - ./hadoop_namenode:/opt/hadoop/data/namenode
+      - ./hadoop_config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./hadoop_config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    # command: ["bash", "-c", "hdfs namenode"]
+    command: >
+      bash -c "
+          if [ ! -d /hadoop/dfs/name/current ]; then
+            echo 'Formatting NameNode...'
+            hdfs namenode -format -force -nonInteractive
+          fi
+          hdfs namenode
+        "
+    networks:
+      - bigdata_network
+
+  datanode:
+    image: apache/hadoop:3.3.5
+    container_name: datanode
+    hostname: datanode
+    user: root
+    volumes:
+      - ./hadoop_datanode:/opt/hadoop/data/datanode
+      - ./hadoop_config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./hadoop_config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+    depends_on:
+      - namenode
+    command: ["bash", "-c", "hdfs datanode"]
+    networks:
+      - bigdata_network
+
+volumes:
+  postgres_data:
+  logs:
+
+networks:
+  airflow_network:
+    driver: bridge
+  bigdata_network:
+    driver: bridge
