@@ -3,13 +3,35 @@ FROM apache/airflow:2.8.1
 USER root
 
 RUN apt-get update && \
-    apt-get install -y openjdk-8-jdk wget && \
+    apt-get install -y wget apt-transport-https gnupg && \
+    wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(cat /etc/os-release | grep VERSION_CODENAME | cut -d= -f2) main" | tee /etc/apt/sources.list.d/adoptium.list && \
+    apt-get update && \
+    apt-get install -y temurin-11-jdk && \
     wget https://downloads.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz && \
     tar -xzf hadoop-3.3.5.tar.gz && \
     mv hadoop-3.3.5 /opt/hadoop && \
-    rm hadoop-3.3.5.tar.gz
+    rm hadoop-3.3.5.tar.gz && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
+ENV JAVA_HOME=/usr/lib/jvm/temurin-11-jdk-amd64
 ENV HADOOP_HOME=/opt/hadoop
-ENV PATH=$PATH:$HADOOP_HOME/bin
+ENV PATH=$PATH:$HADOOP_HOME/bin:$JAVA_HOME/bin
 
 USER airflow
+# FROM apache/airflow:2.8.1
+
+# USER root
+
+# RUN apt-get update && \
+#     apt-get install -y openjdk-8-jdk wget && \
+#     wget https://downloads.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz && \
+#     tar -xzf hadoop-3.3.5.tar.gz && \
+#     mv hadoop-3.3.5 /opt/hadoop && \
+#     rm hadoop-3.3.5.tar.gz
+
+# ENV HADOOP_HOME=/opt/hadoop
+# ENV PATH=$PATH:$HADOOP_HOME/bin
+
+# USER airflow

@@ -20,8 +20,11 @@ services:
       retries: 5
 
   airflow-webserver:
-    image: apache/airflow:2.8.1
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
     container_name: airflow_webserver
+    # user: "50000:50000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -32,37 +35,64 @@ services:
       AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-secret}
       AIRFLOW__WEBSERVER__RBAC: 'True'
       AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+      AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
+      AIRFLOW__LOGGING__LOG_FILENAME_TEMPLATE: "{{ ti.dag_id }}/{{ ti.task_id }}/{{ ts }}/{{ try_number }}.log"
+      HADOOP_CONF_DIR: /opt/hadoop/etc/hadoop
+      CORE_CONF_fs_defaultFS: hdfs://namenode:9000
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./scripts:/opt/airflow/scripts
       - ./init-airflow.sh:/init-airflow.sh
+      - ./hadoop_config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./hadoop_config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
     ports:
       - "8081:8080"
     command: >
       bash -c "/init-airflow.sh && airflow webserver"
+    # command: >
+    #   bash -c "
+    #     mkdir -p /opt/airflow/logs /opt/airflow/logs/scheduler &&
+    #     chmod -R 777 /opt/airflow/logs &&
+    #     /init-airflow.sh &&
+    #     airflow webserver
+    #   "
     networks:
       - airflow_network
       - bigdata_network
     restart: on-failure
 
   airflow-scheduler:
-    image: apache/airflow:2.8.1
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
     container_name: airflow_scheduler
+    # user: "50000:50000"
     depends_on:
       - airflow-webserver
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD:-airflow}@postgres/airflow
       AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
+      HADOOP_CONF_DIR: /opt/hadoop/etc/hadoop
+      CORE_CONF_fs_defaultFS: hdfs://namenode:9000
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
-    command: scheduler
+      - ./hadoop_config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./hadoop_config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+    command: airflow scheduler
+    # command: >
+    #   bash -c "
+    #     mkdir -p /opt/airflow/logs /opt/airflow/logs/scheduler &&
+    #     chmod -R 777 /opt/airflow/logs &&
+    #     airflow scheduler
+    #   "
     networks:
       - airflow_network
       - bigdata_network
     restart: on-failure
+
   namenode:
     image: apache/hadoop:3.3.5
     container_name: namenode
@@ -72,18 +102,38 @@ services:
       - ./hadoop_namenode:/opt/hadoop/data/namenode
       - ./hadoop_config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./hadoop_config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+    environment:
+      - HADOOP_HOME=/opt/hadoop
+      - HDFS_NAMENODE_USER=root
+      - HDFS_DATANODE_USER=root
+      - HDFS_SECONDARYNAMENODE_USER=root
     ports:
       - "9870:9870"
       - "9000:9000"
     # command: ["bash", "-c", "hdfs namenode"]
+    # command: >
+    #   bash -c "
+    #       if [ ! -d /hadoop/dfs/name/current ]; then
+    #         echo 'Formatting NameNode...'
+    #         hdfs namenode -format -force -nonInteractive
+    #       fi
+    #       hdfs namenode
+    #     "
     command: >
       bash -c "
-          if [ ! -d /hadoop/dfs/name/current ]; then
-            echo 'Formatting NameNode...'
-            hdfs namenode -format -force -nonInteractive
-          fi
-          hdfs namenode
-        "
+        echo '=== Checking NameNode directories ==='
+        mkdir -p /opt/hadoop/data/namenode
+        chmod -R 777 /opt/hadoop/data/namenode
+        
+        if [ ! -d /opt/hadoop/data/namenode/current ]; then
+          echo '=== Formatting NameNode ==='
+          echo 'Y' | hdfs namenode -format -force
+          echo '=== NameNode formatted ==='
+        fi
+        
+        echo '=== Starting NameNode ==='
+        hdfs namenode
+      "
     networks:
       - bigdata_network
 
@@ -96,9 +146,36 @@ services:
       - ./hadoop_datanode:/opt/hadoop/data/datanode
       - ./hadoop_config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./hadoop_config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+    environment:
+      - HADOOP_HOME=/opt/hadoop
+      - HDFS_NAMENODE_USER=root
+      - HDFS_DATANODE_USER=root
+      - HDFS_SECONDARYNAMENODE_USER=root
     depends_on:
       - namenode
-    command: ["bash", "-c", "hdfs datanode"]
+    # command: ["bash", "-c", "hdfs datanode"]
+    # command: >
+    #   bash -c "
+    #     echo 'Waiting for NameNode to start...'
+    #     sleep 10
+    #     echo 'Starting DataNode...'
+    #     hdfs datanode
+    #   "
+    command: >
+      bash -c "
+        echo '=== Waiting for NameNode ==='
+        sleep 15
+        
+        echo '=== Creating DataNode directories ==='
+        mkdir -p /opt/hadoop/data/datanode
+        chmod -R 777 /opt/hadoop/data/datanode
+        
+        echo '=== Checking DataNode directory ==='
+        ls -la /opt/hadoop/data/datanode
+        
+        echo '=== Starting DataNode ==='
+        hdfs datanode
+      "
     networks:
       - bigdata_network
 
