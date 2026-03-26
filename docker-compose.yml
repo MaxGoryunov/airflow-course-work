@@ -179,6 +179,33 @@ services:
     networks:
       - bigdata_network
 
+  spark-master:
+    image: apache/spark:3.5.3
+    container_name: spark_master
+    hostname: spark-master
+    environment:
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+      - HADOOP_CONF_DIR=/opt/bitnami/spark/conf/hadoop
+    ports:
+      - "8082:8080"  # Spark Master Web UI
+      - "7077:7077"  # Spark Master Port
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    networks:
+      - bigdata_network
+
+  spark-worker:
+    image: apache/spark:3.5.3
+    container_name: spark_worker
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - HADOOP_CONF_DIR=/opt/bitnami/spark/conf/hadoop
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    networks:
+      - bigdata_network
+
 volumes:
   postgres_data:
   logs:
