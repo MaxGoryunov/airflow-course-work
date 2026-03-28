@@ -5,21 +5,74 @@ USER root
 RUN apt-get update && \
     apt-get install -y wget apt-transport-https gnupg && \
     wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(cat /etc/os-release | grep VERSION_CODENAME | cut -d= -f2) main" | tee /etc/apt/sources.list.d/adoptium.list && \
+    echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(grep VERSION_CODENAME /etc/os-release | cut -d= -f2) main" | tee /etc/apt/sources.list.d/adoptium.list && \
     apt-get update && \
     apt-get install -y temurin-11-jdk && \
-    wget https://downloads.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz && \
-    tar -xzf hadoop-3.3.5.tar.gz && \
-    mv hadoop-3.3.5 /opt/hadoop && \
-    rm hadoop-3.3.5.tar.gz && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-ENV JAVA_HOME=/usr/lib/jvm/temurin-11-jdk-amd64
-ENV HADOOP_HOME=/opt/hadoop
-ENV PATH=$PATH:$HADOOP_HOME/bin:$JAVA_HOME/bin
+RUN wget https://archive.apache.org/dist/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz && \
+    tar -xzf spark-3.5.3-bin-hadoop3.tgz -C /opt/ && \
+    mv /opt/spark-3.5.3-bin-hadoop3 /opt/spark && \
+    rm spark-3.5.3-bin-hadoop3.tgz
 
+RUN wget https://archive.apache.org/dist/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz && \
+    tar -xzf hadoop-3.3.6.tar.gz && \
+    mv hadoop-3.3.6 /opt/hadoop && \
+    rm hadoop-3.3.6.tar.gz
+
+RUN mkdir -p /opt/airflow/logs /opt/airflow/logs/scheduler && \
+    chown -R 50000:0 /opt/airflow/logs && \
+    chmod -R 775 /opt/airflow/logs
+
+USER root
+RUN apt-get update && apt-get install -y procps
 USER airflow
+
+RUN pip install --no-cache-dir \
+    pyspark==3.5.3 \
+    apache-airflow-providers-apache-spark
+
+ENV JAVA_HOME=/usr/lib/jvm/temurin-11-jdk-amd64
+ENV SPARK_HOME=/opt/spark
+ENV HADOOP_HOME=/opt/hadoop
+ENV PATH=$PATH:$SPARK_HOME/bin:$HADOOP_HOME/bin
+
+
+# FROM apache/airflow:2.8.1
+
+# USER root
+
+# RUN apt-get update && \
+#     apt-get install -y wget apt-transport-https gnupg && \
+#     wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg && \
+#     echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(cat /etc/os-release | grep VERSION_CODENAME | cut -d= -f2) main" | tee /etc/apt/sources.list.d/adoptium.list && \
+#     apt-get update && \
+#     apt-get install -y temurin-11-jdk && \
+#     wget https://downloads.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz && \
+#     tar -xzf hadoop-3.3.5.tar.gz && \
+#     mv hadoop-3.3.5 /opt/hadoop && \
+#     rm hadoop-3.3.5.tar.gz && \
+#     apt-get clean && \
+#     rm -rf /var/lib/apt/lists/*
+
+# RUN wget https://dlcdn.apache.org/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz && \
+#     tar -xzf spark-3.5.3-bin-hadoop3.tgz -C /opt/ && \
+#     mv /opt/spark-3.5.3-bin-hadoop3 /opt/spark && \
+#     rm spark-3.5.3-bin-hadoop3.tgz
+
+# ENV JAVA_HOME=/usr/lib/jvm/temurin-11-jdk-amd64
+# ENV HADOOP_HOME=/opt/hadoop
+# ENV SPARK_HOME=/opt/spark
+# ENV PATH=$PATH:$HADOOP_HOME/bin:$JAVA_HOME/bin
+
+# USER airflow
+# RUN pip install --no-cache-dir \
+#     pyspark==3.5.3 \
+#     apache-airflow-providers-apache-spark
+
+
+
 # FROM apache/airflow:2.8.1
 
 # USER root
