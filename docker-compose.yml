@@ -24,12 +24,14 @@ services:
       context: .
       dockerfile: Dockerfile.airflow
     container_name: airflow_webserver
+    hostname: airflow-webserver
     # user: "50000:50000"
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       PYSPARK_PYTHON: /usr/bin/python3
+      # PYSPARK_PYTHON: python3
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD:-airflow}@postgres/airflow
       AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
@@ -74,6 +76,7 @@ services:
     depends_on:
       - airflow-webserver
     environment:
+      # PYSPARK_PYTHON: python3
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD:-airflow}@postgres/airflow
       AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
@@ -200,15 +203,17 @@ services:
       - SPARK_MASTER_PORT=7077
       - SPARK_MASTER_WEBUI_PORT=8080
       - SPARK_DAEMON_MEMORY=512m
-      - SPARK_LOCAL_IP=0.0.0.0
-      - SPARK_PUBLIC_DNS=spark-master
+      # - SPARK_LOCAL_IP=0.0.0.0
+      # - SPARK_PUBLIC_DNS=spark-master
       - HADOOP_CONF_DIR=/opt/bitnami/spark/conf/hadoop
       - PATH=/opt/spark/bin:$PATH
       - PYSPARK_PYTHON=/usr/bin/python3
       - PYSPARK_DRIVER_PYTHON=/usr/bin/python3
+      # - PYSPARK_PYTHON=/usr/bin/python3.11
+      # - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.11
     ports:
-      - "8082:8080"  # Spark Master Web UI
-      - "7077:7077"  # Spark Master Port
+      - "8082:8080"
+      - "7077:7077"
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
     networks:
       - bigdata_network
@@ -227,18 +232,21 @@ services:
       - ./hadoop_config:/opt/bitnami/spark/conf/hadoop/
       - ./spark:/opt/spark-apps
     environment:
+      - SPARK_MASTER_HOST=spark-master
       - SPARK_WORKER_MEMORY=1g
       - SPARK_WORKER_CORES=2
       - SPARK_WORKER_PORT=7078
       - SPARK_WORKER_WEBUI_PORT=8083
       - SPARK_MASTER_URL=spark://spark-master:7077
       - SPARK_DAEMON_MEMORY=512m
-      - SPARK_LOCAL_IP=0.0.0.0
-      - SPARK_PUBLIC_DNS=spark-worker
+      # - SPARK_LOCAL_IP=0.0.0.0
+      # - SPARK_PUBLIC_DNS=spark-worker
       - HADOOP_CONF_DIR=/opt/bitnami/spark/conf/hadoop
       - PATH=/opt/spark/bin:$PATH
       - PYSPARK_PYTHON=/usr/bin/python3
       - PYSPARK_DRIVER_PYTHON=/usr/bin/python3
+      # - PYSPARK_PYTHON=/usr/bin/python3.11
+      # - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.11
       - SPARK_LOCAL_DIRS=/tmp/spark
     ports:
       - "8083:8083"
