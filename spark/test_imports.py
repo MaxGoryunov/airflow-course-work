@@ -9,9 +9,8 @@ spark = SparkSession.builder \
     .getOrCreate()
 
 print(f"Spark version: {spark.version}")
-print("SUCCESS: All imports work!")
+print("SUCCESS: all imports work")
 
-# Простое вычисление
 rdd = spark.sparkContext.parallelize(range(10))
 print(f"Sum: {rdd.sum()}")
 

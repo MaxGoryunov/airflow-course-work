@@ -190,7 +190,10 @@ services:
       - bigdata_network
 
   spark-master:
-    image: apache/spark:3.5.3
+    # image: apache/spark:3.5.3
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
     container_name: spark_master
     hostname: spark-master
     volumes:
@@ -220,9 +223,12 @@ services:
     restart: on-failure
 
   spark-worker:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.spark-worker
     build:
       context: .
-      dockerfile: Dockerfile.spark-worker
+      dockerfile: Dockerfile.spark
     container_name: spark_worker
     depends_on:
       - spark-master
@@ -259,6 +265,18 @@ services:
     networks:
       - bigdata_network
     restart: on-failure
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: clickhouse
+    ports:
+      - "8123:8123"
+      - "9001:9000"
+    volumes:
+      - ./clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse_logs:/var/log/clickhouse
+    networks:
+      - bigdata_network
 
 volumes:
   postgres_data:

@@ -15,14 +15,13 @@ try:
     
     print(f"Spark version: {spark.version}")
     
-    # Простейшая операция
     data = [1, 2, 3, 4, 5]
     rdd = spark.sparkContext.parallelize(data, 1)
     result = rdd.map(lambda x: x * 2).collect()
     print(f"Result: {result}")
     
     spark.stop()
-    print("SUCCESS!")
+    print("SUCCESS")
     
 except Exception as e:
     print(f"ERROR: {e}")

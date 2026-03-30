@@ -15,7 +15,6 @@ with DAG(
     generate = BashOperator(
         task_id="generate_stream",
         bash_command="""
-        # Создаем уникальное имя один раз и сохраняем в переменную
         FILENAME="file_$(date +%s).txt" && \
         echo "hello streaming $(date)" > /tmp/$FILENAME && \
         hdfs dfs -put -f /tmp/$FILENAME /user/airflow/stream_input/ && \

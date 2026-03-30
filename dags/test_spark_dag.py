@@ -4,6 +4,7 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime
 import os
 
+
 def test_hdfs():
     """Тестовая функция для проверки HDFS"""
     import subprocess
@@ -14,6 +15,7 @@ def test_hdfs():
         print(f"HDFS error: {result.stderr}")
         return False
     return True
+
 
 def test_spark():
     """Тестовая функция для проверки Spark"""
@@ -26,7 +28,6 @@ def test_spark():
     
     print(f"Spark version: {spark.version}")
     
-    # Простой тест
     data = [("test", 1)]
     df = spark.createDataFrame(data, ["word", "count"])
     df.show()
@@ -42,25 +43,25 @@ with DAG(
     tags=['test']
 ) as dag:
 
-    # Тест 1: Создание файла
+    # Создание файла
     create_file = BashOperator(
         task_id="create_test_file",
         bash_command="echo 'Hello Airflow' > /tmp/test_airflow.txt"
     )
     
-    # Тест 2: Загрузка в HDFS
+    # Загрузка в HDFS
     upload_to_hdfs = BashOperator(
         task_id="upload_to_hdfs",
         bash_command="hdfs dfs -put -f /tmp/test_airflow.txt /user/airflow/"
     )
     
-    # Тест 3: Проверка HDFS
+    # Проверка HDFS
     check_hdfs = PythonOperator(
         task_id="check_hdfs",
         python_callable=test_hdfs
     )
     
-    # Тест 4: Spark задача
+    # Spark задача
     run_spark = BashOperator(
         task_id="run_spark_test",
         bash_command="""
@@ -71,13 +72,13 @@ with DAG(
         """
     )
     
-    # Тест 5: Проверка Spark
+    # Проверка Spark
     check_spark = PythonOperator(
         task_id="check_spark",
         python_callable=test_spark
     )
     
-    # Тест 6: Чтение из HDFS
+    # Чтение из HDFS
     read_from_hdfs = BashOperator(
         task_id="read_from_hdfs",
         bash_command="hdfs dfs -cat /user/airflow/spark_test_result/part-*.parquet 2>/dev/null || echo 'No result yet'"
