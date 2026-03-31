@@ -278,6 +278,25 @@ services:
     networks:
       - bigdata_network
 
+  superset:
+    build:
+      context: .
+      dockerfile: Dockerfile.superset
+    container_name: superset
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-secret}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./superset_init.sh:/app/superset_init.sh
+      - ./superset_home:/app/superset_home
+    ports:
+      - "8088:8088"
+    entrypoint: /app/superset_init.sh
+    depends_on:
+      - clickhouse
+    networks:
+      - bigdata_network
+
 volumes:
   postgres_data:
   logs:
