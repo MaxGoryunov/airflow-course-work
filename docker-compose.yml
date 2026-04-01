@@ -116,6 +116,10 @@ services:
       - HDFS_NAMENODE_USER=root
       - HDFS_DATANODE_USER=root
       - HDFS_SECONDARYNAMENODE_USER=root
+      - CLUSTER_NAME=test
+      # - ENSURE_NAMENODE_DIR=/tmp/hadoop-root/dfs/name
+      # - HDFS_CONF_dfs_namenode_heartbeat_recheck-interval=10000 
+      # - HDFS_CONF_dfs_heartbeat_interval=1
     ports:
       - "9870:9870"
       - "9000:9000"
@@ -142,6 +146,8 @@ services:
         
         echo '=== Starting NameNode ==='
         hdfs namenode
+
+        hdfs dfs -chown -R airflow:supergroup /user/airflow
       "
     networks:
       - bigdata_network
@@ -161,6 +167,10 @@ services:
       - HDFS_NAMENODE_USER=root
       - HDFS_DATANODE_USER=root
       - HDFS_SECONDARYNAMENODE_USER=root
+      - CLUSTER_NAME=test
+      # - ENSURE_NAMENODE_DIR=/tmp/hadoop-root/dfs/name
+      # - HDFS_CONF_dfs_namenode_heartbeat_recheck-interval=10000 
+      # - HDFS_CONF_dfs_heartbeat_interval=1
     depends_on:
       - namenode
     # command: ["bash", "-c", "hdfs datanode"]
@@ -169,6 +179,51 @@ services:
     #     echo 'Waiting for NameNode to start...'
     #     sleep 10
     #     echo 'Starting DataNode...'
+    #     hdfs datanode
+    #   "
+    command: >
+      bash -c "
+        echo '=== Waiting for NameNode ==='
+        sleep 15
+        
+        echo '=== Creating DataNode directories ==='
+        mkdir -p /opt/hadoop/data/datanode
+        chmod -R 777 /opt/hadoop/data/datanode
+        
+        echo '=== Checking DataNode directory ==='
+        ls -la /opt/hadoop/data/datanode
+        
+        echo '=== Starting DataNode ==='
+        hdfs datanode
+      "
+    networks:
+      - bigdata_network
+
+  datanode2:
+    image: apache/hadoop:3.3.5
+    container_name: datanode2
+    hostname: datanode2
+    user: root
+    volumes:
+      - ./hadoop_datanode2:/opt/hadoop/data/datanode
+      - ./hadoop_config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./hadoop_config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+    environment:
+      - HADOOP_HOME=/opt/hadoop
+      - HDFS_NAMENODE_USER=root
+      - HDFS_DATANODE_USER=root
+      - HDFS_SECONDARYNAMENODE_USER=root
+      - CLUSTER_NAME=test
+      # - ENSURE_NAMENODE_DIR=/tmp/hadoop-root/dfs/name
+      # - HDFS_CONF_dfs_namenode_heartbeat_recheck-interval=10000 
+      # - HDFS_CONF_dfs_heartbeat_interval=1
+    depends_on:
+      - namenode
+    # command: >
+    #   bash -c "
+    #     sleep 15 &&
+    #     mkdir -p /opt/hadoop/data/datanode &&
+    #     chmod -R 777 /opt/hadoop/data/datanode &&
     #     hdfs datanode
     #   "
     command: >
