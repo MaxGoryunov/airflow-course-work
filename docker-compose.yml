@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:13
@@ -9,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
       POSTGRES_DB: airflow
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
     networks:
       - airflow_network
       # - bigdata_network
@@ -29,6 +27,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      namenode:
+        condition: service_healthy
     environment:
       PYSPARK_PYTHON: /usr/bin/python3
       # PYSPARK_PYTHON: python3
@@ -42,6 +42,13 @@ services:
       AIRFLOW__LOGGING__LOG_FILENAME_TEMPLATE: "{{ ti.dag_id }}/{{ ti.task_id }}/{{ ts }}/{{ try_number }}.log"
       HADOOP_CONF_DIR: /opt/hadoop/etc/hadoop
       CORE_CONF_fs_defaultFS: hdfs://namenode:9000
+      AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 300
+      AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 60
+      AIRFLOW__SCHEDULER__PARSING_PROCESSES: 2
+      AIRFLOW__SCHEDULER__DAG_FILE_PROCESSOR_TIMEOUT: 150
+      AIRFLOW__SCHEDULER__SCHEDULER_HEARTBEAT_SEC: 30
+      AIRFLOW__CORE__KEEPALIVE_STARET_DELAY: 30
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_RETRIES: 10
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -82,6 +89,13 @@ services:
       AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
       HADOOP_CONF_DIR: /opt/hadoop/etc/hadoop
       CORE_CONF_fs_defaultFS: hdfs://namenode:9000
+      AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 300
+      AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 60
+      AIRFLOW__SCHEDULER__PARSING_PROCESSES: 2
+      AIRFLOW__SCHEDULER__DAG_FILE_PROCESSOR_TIMEOUT: 150
+      AIRFLOW__SCHEDULER__SCHEDULER_HEARTBEAT_SEC: 30
+      AIRFLOW__CORE__KEEPALIVE_STARET_DELAY: 30
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_RETRIES: 10
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -96,9 +110,12 @@ services:
     #     chmod -R 777 /opt/airflow/logs &&
     #     airflow scheduler
     #   "
+    ports:
+      - "7001:7001"
+      - "7002:7002"
     networks:
-      - airflow_network
       - bigdata_network
+      - airflow_network
     restart: on-failure
 
   namenode:
@@ -110,6 +127,7 @@ services:
       - ./hadoop_namenode:/opt/hadoop/data/namenode
       - ./hadoop_config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./hadoop_config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+      # - ./hadoop_config/log4j.properties:/opt/hadoop/etc/hadoop/log4j.properties
       # - ./hadoop_config:/opt/bitnami/spark/conf/hadoop/
     environment:
       - HADOOP_HOME=/opt/hadoop
@@ -138,6 +156,14 @@ services:
         mkdir -p /opt/hadoop/data/namenode
         chmod -R 777 /opt/hadoop/data/namenode
         
+        echo '=== Creating archive and success folder ==='
+        hdfs dfs -mkdir -p /user/airflow/archive
+        hdfs dfs -mkdir -p /user/airflow/success
+
+        echo '=== Preparing for airflow ==='
+        hdfs dfs -mkdir -p /user/airflow/stream_input
+        hdfs dfs -chmod -R 777 /user
+        
         if [ ! -d /opt/hadoop/data/namenode/current ]; then
           echo '=== Formatting NameNode ==='
           echo 'Y' | hdfs namenode -format -force
@@ -149,8 +175,38 @@ services:
 
         hdfs dfs -chown -R airflow:supergroup /user/airflow
       "
+    # command: >
+    #   bash -c "
+    #     if [ ! -d /opt/hadoop/data/namenode/current ]; then
+    #       echo '=== Formatting NameNode ==='
+    #       hdfs namenode -format -force -nonInteractive
+    #     fi
+        
+    #     hdfs namenode &
+        
+    #     echo '=== Waiting for NameNode to be ready ==='
+    #     until hdfs dfsadmin -safemode wait; do
+    #       echo 'NameNode is still starting up...'
+    #       sleep 5
+    #     done
+    #     echo '=== NameNode is up ==='
+
+    #     hdfs dfs -mkdir -p /user/airflow/success
+    #     hdfs dfs -mkdir -p /user/airflow/archive
+    #     hdfs dfs -mkdir -p /user/airflow/stream_input
+    #     hdfs dfs -chmod -R 777 /user
+    #     hdfs dfs -chown -R root:root /user/airflow
+    #     echo '=== HDFS success, archive, stream_input folders created ==='
+        
+    #     wait
+    #   "
     networks:
       - bigdata_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9870"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   datanode:
     image: apache/hadoop:3.3.5
@@ -185,6 +241,8 @@ services:
       bash -c "
         echo '=== Waiting for NameNode ==='
         sleep 15
+        mkdir -p dags logs spark hadoop_config hadoop_namenode hadoop_datanode  
+        chmod -R 777 logs hadoop_namenode hadoop_datanode
         
         echo '=== Creating DataNode directories ==='
         mkdir -p /opt/hadoop/data/datanode
@@ -284,7 +342,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.spark
-    container_name: spark_worker
+    # container_name: spark_worker
     depends_on:
       - spark-master
     volumes:
@@ -309,8 +367,8 @@ services:
       # - PYSPARK_PYTHON=/usr/bin/python3.11
       # - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.11
       - SPARK_LOCAL_DIRS=/tmp/spark
-    ports:
-      - "8083:8083"
+    # ports:
+    #   - "8083:8083"
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
     # command: >
     #   bash -c "
