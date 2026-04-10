@@ -37,7 +37,7 @@ def test_spark():
 
 with DAG(
     dag_id="test_system_dag",
-    start_date=datetime(2024, 1, 1),
+    start_date=datetime(2026, 3, 1),
     schedule_interval=None,
     catchup=False,
     tags=['test']

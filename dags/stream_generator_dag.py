@@ -27,7 +27,7 @@ def generate_json_data(**kwargs):
 
 with DAG(
     dag_id="stream_generator",
-    start_date=datetime(2024, 1, 1),
+    start_date=datetime(2026, 3, 1),
     schedule_interval="*/1 * * * *",
     catchup=False
 ) as dag:

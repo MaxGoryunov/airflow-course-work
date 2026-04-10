@@ -29,16 +29,16 @@ if df.count() < 2:
     spark.stop()
     exit(0)
 
-# === ML pipeline ===
+print("Creating dataframe")
 df = df.withColumn("index", monotonically_increasing_id())
 assembler = VectorAssembler(inputCols=["index"], outputCol="features")
 df = assembler.transform(df)
 
-# Linear regression
+print("Linear regression")
 lr = LinearRegression(featuresCol="features", labelCol="amount")
 model = lr.fit(df)
 
-# Results
+print("Results")
 coeff = model.coefficients[0]
 intercept = model.intercept
 print(f"Model trained: y = {coeff}x + {intercept}")
@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS streaming.model_results (
 ORDER BY updated_at
 """)
 
+print("Storing data")
 client.insert(
     "streaming.model_results",
     [(float(coeff), float(intercept))],

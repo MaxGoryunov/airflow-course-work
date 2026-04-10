@@ -35,7 +35,7 @@ def check_db_availability():
 
 with DAG(
     dag_id="pipeline_fail_retry",
-    start_date=datetime(2024, 1, 1),
+    start_date=datetime(2026, 3, 1),
     schedule_interval=None,
     catchup=False
 ) as dag:

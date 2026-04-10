@@ -10,7 +10,7 @@ services:
       - ./postgres_data:/var/lib/postgresql/data
     networks:
       - airflow_network
-      # - bigdata_network
+      - bigdata_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U airflow"]
       interval: 10s
@@ -96,6 +96,8 @@ services:
       AIRFLOW__SCHEDULER__SCHEDULER_HEARTBEAT_SEC: 30
       AIRFLOW__CORE__KEEPALIVE_STARET_DELAY: 30
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_RETRIES: 10
+      AIRFLOW__SCHEDULER__SCHEDULER_ZOMBIE_TASK_THRESHOLD: 300
+      AIRFLOW__CORE__KEEPALIVE_SENT_DELAY: 60
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
