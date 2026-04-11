@@ -40,6 +40,7 @@ services:
       AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
       AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
       AIRFLOW__LOGGING__LOG_FILENAME_TEMPLATE: "{{ ti.dag_id }}/{{ ti.task_id }}/{{ ts }}/{{ try_number }}.log"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
       HADOOP_CONF_DIR: /opt/hadoop/etc/hadoop
       CORE_CONF_fs_defaultFS: hdfs://namenode:9000
       AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 300
@@ -87,6 +88,7 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD:-airflow}@postgres/airflow
       AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
       HADOOP_CONF_DIR: /opt/hadoop/etc/hadoop
       CORE_CONF_fs_defaultFS: hdfs://namenode:9000
       AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 300

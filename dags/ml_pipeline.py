@@ -23,6 +23,6 @@ DRIVER_IP=$(hostname -I | tr ' ' '\n' | grep '172.18' | head -n 1)
 --conf spark.driver.port=7001 \
 --conf spark.blockManager.port=7002 \
 --conf spark.hadoop.fs.defaultFS=hdfs://namenode:9000 \
-/opt/spark-apps/ml_job.py
+/opt/spark-apps/rf_ml_job.py
         """
     )
