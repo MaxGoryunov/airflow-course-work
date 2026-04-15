@@ -9,8 +9,9 @@ services:
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
     networks:
-      - airflow_network
-      - bigdata_network
+      # - airflow_network
+      # - bigdata_network
+      - ml_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U airflow"]
       interval: 10s
@@ -71,8 +72,9 @@ services:
     #     airflow webserver
     #   "
     networks:
-      - airflow_network
-      - bigdata_network
+      # - airflow_network
+      # - bigdata_network
+      - ml_network
     restart: on-failure
 
   airflow-scheduler:
@@ -118,8 +120,9 @@ services:
       - "7001:7001"
       - "7002:7002"
     networks:
-      - bigdata_network
-      - airflow_network
+      # - bigdata_network
+      # - airflow_network
+      - ml_network
     restart: on-failure
 
   namenode:
@@ -156,29 +159,57 @@ services:
     #     "
     command: >
       bash -c "
-        echo '=== Checking NameNode directories ==='
-        mkdir -p /opt/hadoop/data/namenode
-        chmod -R 777 /opt/hadoop/data/namenode
-        
-        echo '=== Creating archive and success folder ==='
-        hdfs dfs -mkdir -p /user/airflow/archive
-        hdfs dfs -mkdir -p /user/airflow/success
-
-        echo '=== Preparing for airflow ==='
-        hdfs dfs -mkdir -p /user/airflow/stream_input
-        hdfs dfs -chmod -R 777 /user
-        
+        echo '=== 1. Formatting ==='
         if [ ! -d /opt/hadoop/data/namenode/current ]; then
-          echo '=== Formatting NameNode ==='
-          echo 'Y' | hdfs namenode -format -force
-          echo '=== NameNode formatted ==='
+          hdfs namenode -format -force -nonInteractive
         fi
         
-        echo '=== Starting NameNode ==='
-        hdfs namenode
+        echo '=== 2. Starting NameNode ==='
+        # Запускаем в фоне
+        hdfs namenode & 
+        
+        echo '=== 3. Waiting for service ==='
+        # Эта команда сама будет ждать, пока NameNode не выйдет из безопасного режима
+        # Она не упадет, а будет висеть до победного
+        until hdfs dfsadmin -safemode wait; do
+          echo 'NameNode is not responding yet... sleeping 5s'
+          sleep 5
+        done
 
+        echo '=== 4. Creating folders ==='
+        hdfs dfs -mkdir -p /user/airflow/archive /user/airflow/success /user/airflow/stream_input
+        hdfs dfs -chmod -R 777 /user
         hdfs dfs -chown -R airflow:supergroup /user/airflow
+        
+        echo '=== 5. Ready ==='
+        # Оставляем процесс основным, чтобы контейнер не выключился
+        wait
       "
+    # command: >
+    #   bash -c "
+    #     echo '=== Checking NameNode directories ==='
+    #     mkdir -p /opt/hadoop/data/namenode
+    #     chmod -R 777 /opt/hadoop/data/namenode
+        
+    #     echo '=== Creating archive and success folder ==='
+    #     hdfs dfs -mkdir -p /user/airflow/archive
+    #     hdfs dfs -mkdir -p /user/airflow/success
+
+    #     echo '=== Preparing for airflow ==='
+    #     hdfs dfs -mkdir -p /user/airflow/stream_input
+    #     hdfs dfs -chmod -R 777 /user
+        
+    #     if [ ! -d /opt/hadoop/data/namenode/current ]; then
+    #       echo '=== Formatting NameNode ==='
+    #       echo 'Y' | hdfs namenode -format -force
+    #       echo '=== NameNode formatted ==='
+    #     fi
+        
+    #     echo '=== Starting NameNode ==='
+    #     hdfs namenode
+
+    #     hdfs dfs -chown -R airflow:supergroup /user/airflow
+    #   "
     # command: >
     #   bash -c "
     #     if [ ! -d /opt/hadoop/data/namenode/current ]; then
@@ -205,7 +236,8 @@ services:
     #     wait
     #   "
     networks:
-      - bigdata_network
+      # - bigdata_network
+      - ml_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9870"]
       interval: 10s
@@ -243,6 +275,9 @@ services:
     #   "
     command: >
       bash -c "
+        echo '=== Cleaning up and preparing storage ==='
+        # Удаляем всё, что могло остаться от неудачных запусков (кроме самой папки)
+        find /opt/hadoop/data/datanode -mindepth 1 -delete
         echo '=== Waiting for NameNode ==='
         sleep 15
         mkdir -p dags logs spark hadoop_config hadoop_namenode hadoop_datanode  
@@ -259,7 +294,8 @@ services:
         hdfs datanode
       "
     networks:
-      - bigdata_network
+      # - bigdata_network
+      - ml_network
 
   datanode2:
     image: apache/hadoop:3.3.5
@@ -290,8 +326,13 @@ services:
     #   "
     command: >
       bash -c "
+        echo '=== Cleaning up and preparing storage ==='
+        # Удаляем всё, что могло остаться от неудачных запусков (кроме самой папки)
+        find /opt/hadoop/data/datanode -mindepth 1 -delete
         echo '=== Waiting for NameNode ==='
         sleep 15
+        mkdir -p dags logs spark hadoop_config hadoop_namenode hadoop_datanode  
+        chmod -R 777 logs hadoop_namenode hadoop_datanode
         
         echo '=== Creating DataNode directories ==='
         mkdir -p /opt/hadoop/data/datanode
@@ -304,7 +345,8 @@ services:
         hdfs datanode
       "
     networks:
-      - bigdata_network
+      # - bigdata_network
+      - ml_network
 
   spark-master:
     # image: apache/spark:3.5.3
@@ -336,7 +378,8 @@ services:
       - "7077:7077"
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
     networks:
-      - bigdata_network
+      # - bigdata_network
+      - ml_network
     restart: on-failure
 
   spark-worker:
@@ -380,7 +423,8 @@ services:
     #     /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
     #   "
     networks:
-      - bigdata_network
+      # - bigdata_network
+      - ml_network
     restart: on-failure
 
   clickhouse:
@@ -393,7 +437,8 @@ services:
       - ./clickhouse_data:/var/lib/clickhouse
       - ./clickhouse_logs:/var/log/clickhouse
     networks:
-      - bigdata_network
+      # - bigdata_network
+      - ml_network
 
   superset:
     build:
@@ -412,14 +457,17 @@ services:
     depends_on:
       - clickhouse
     networks:
-      - bigdata_network
+      # - bigdata_network
+      - ml_network
 
 volumes:
   postgres_data:
   logs:
 
 networks:
-  airflow_network:
+  ml_network:
     driver: bridge
-  bigdata_network:
-    driver: bridge
+  # airflow_network:
+  #   driver: bridge
+  # bigdata_network:
+  #   driver: bridge
