@@ -34,10 +34,14 @@ services:
       PYSPARK_PYTHON: /usr/bin/python3
       # PYSPARK_PYTHON: python3
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__KEEPALIVE_IDLE_TIMEOUT: 120
+      AIRFLOW__CORE__LOAD_EXAMPLES: False
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD:-airflow}@postgres/airflow
       AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
       AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-secret}
       AIRFLOW__WEBSERVER__RBAC: 'True'
+      AIRFLOW__WEBSERVER__WEB_SERVER_MASTER_TIMEOUT: 300
+      AIRFLOW__WEBSERVER__WORKERS: 2
       AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
       AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
       AIRFLOW__LOGGING__LOG_FILENAME_TEMPLATE: "{{ ti.dag_id }}/{{ ti.task_id }}/{{ ts }}/{{ try_number }}.log"
@@ -49,6 +53,7 @@ services:
       AIRFLOW__SCHEDULER__PARSING_PROCESSES: 2
       AIRFLOW__SCHEDULER__DAG_FILE_PROCESSOR_TIMEOUT: 150
       AIRFLOW__SCHEDULER__SCHEDULER_HEARTBEAT_SEC: 30
+      AIRFLOW__SCHEDULER__JOB_HEARTBEAT_SEC: 30
       AIRFLOW__CORE__KEEPALIVE_STARET_DELAY: 30
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_RETRIES: 10
     volumes:
@@ -59,6 +64,7 @@ services:
       - ./init-airflow.sh:/init-airflow.sh
       - ./hadoop_config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./hadoop_config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+      - ./webserver_config.py:/opt/airflow/webserver_config.py
       # - ./hadoop_config:/opt/bitnami/spark/conf/hadoop/
     ports:
       - "8081:8080"
@@ -88,8 +94,10 @@ services:
     environment:
       # PYSPARK_PYTHON: python3
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__KEEPALIVE_IDLE_TIMEOUT: 120
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD:-airflow}@postgres/airflow
       AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-secret}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
       HADOOP_CONF_DIR: /opt/hadoop/etc/hadoop
       CORE_CONF_fs_defaultFS: hdfs://namenode:9000
@@ -98,6 +106,7 @@ services:
       AIRFLOW__SCHEDULER__PARSING_PROCESSES: 2
       AIRFLOW__SCHEDULER__DAG_FILE_PROCESSOR_TIMEOUT: 150
       AIRFLOW__SCHEDULER__SCHEDULER_HEARTBEAT_SEC: 30
+      AIRFLOW__SCHEDULER__JOB_HEARTBEAT_SEC: 30
       AIRFLOW__CORE__KEEPALIVE_STARET_DELAY: 30
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_RETRIES: 10
       AIRFLOW__SCHEDULER__SCHEDULER_ZOMBIE_TASK_THRESHOLD: 300
@@ -159,14 +168,17 @@ services:
     #     "
     command: >
       bash -c "
-        echo '=== 1. Formatting ==='
-        if [ ! -d /opt/hadoop/data/namenode/current ]; then
+        echo '=== Waiting for volumes to mount ==='
+        sleep 5
+        
+        if [ ! -f /opt/hadoop/data/namenode/current/VERSION ]; then
+          echo '=== No VERSION file found. Formatting... ==='
           hdfs namenode -format -force -nonInteractive
+        else
+          echo '=== NameNode already formatted. Skipping... ==='
         fi
         
-        echo '=== 2. Starting NameNode ==='
-        # Запускаем в фоне
-        hdfs namenode & 
+        hdfs namenode &
         
         echo '=== 3. Waiting for service ==='
         # Эта команда сама будет ждать, пока NameNode не выйдет из безопасного режима
@@ -185,6 +197,33 @@ services:
         # Оставляем процесс основным, чтобы контейнер не выключился
         wait
       "
+    #   bash -c "
+    #     echo '=== 1. Formatting ==='
+    #     if [ ! -d /opt/hadoop/data/namenode/current ]; then
+    #       hdfs namenode -format -force -nonInteractive
+    #     fi
+        
+    #     echo '=== 2. Starting NameNode ==='
+    #     # Запускаем в фоне
+    #     hdfs namenode & 
+        
+    #     echo '=== 3. Waiting for service ==='
+    #     # Эта команда сама будет ждать, пока NameNode не выйдет из безопасного режима
+    #     # Она не упадет, а будет висеть до победного
+    #     until hdfs dfsadmin -safemode wait; do
+    #       echo 'NameNode is not responding yet... sleeping 5s'
+    #       sleep 5
+    #     done
+
+    #     echo '=== 4. Creating folders ==='
+    #     hdfs dfs -mkdir -p /user/airflow/archive /user/airflow/success /user/airflow/stream_input
+    #     hdfs dfs -chmod -R 777 /user
+    #     hdfs dfs -chown -R airflow:supergroup /user/airflow
+        
+    #     echo '=== 5. Ready ==='
+    #     # Оставляем процесс основным, чтобы контейнер не выключился
+    #     wait
+    #   "
     # command: >
     #   bash -c "
     #     echo '=== Checking NameNode directories ==='
@@ -297,56 +336,56 @@ services:
       # - bigdata_network
       - ml_network
 
-  datanode2:
-    image: apache/hadoop:3.3.5
-    container_name: datanode2
-    hostname: datanode2
-    user: root
-    volumes:
-      - ./hadoop_datanode2:/opt/hadoop/data/datanode
-      - ./hadoop_config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
-      - ./hadoop_config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
-    environment:
-      - HADOOP_HOME=/opt/hadoop
-      - HDFS_NAMENODE_USER=root
-      - HDFS_DATANODE_USER=root
-      - HDFS_SECONDARYNAMENODE_USER=root
-      - CLUSTER_NAME=test
-      # - ENSURE_NAMENODE_DIR=/tmp/hadoop-root/dfs/name
-      # - HDFS_CONF_dfs_namenode_heartbeat_recheck-interval=10000 
-      # - HDFS_CONF_dfs_heartbeat_interval=1
-    depends_on:
-      - namenode
-    # command: >
-    #   bash -c "
-    #     sleep 15 &&
-    #     mkdir -p /opt/hadoop/data/datanode &&
-    #     chmod -R 777 /opt/hadoop/data/datanode &&
-    #     hdfs datanode
-    #   "
-    command: >
-      bash -c "
-        echo '=== Cleaning up and preparing storage ==='
-        # Удаляем всё, что могло остаться от неудачных запусков (кроме самой папки)
-        find /opt/hadoop/data/datanode -mindepth 1 -delete
-        echo '=== Waiting for NameNode ==='
-        sleep 15
-        mkdir -p dags logs spark hadoop_config hadoop_namenode hadoop_datanode  
-        chmod -R 777 logs hadoop_namenode hadoop_datanode
+  # datanode2:
+  #   image: apache/hadoop:3.3.5
+  #   container_name: datanode2
+  #   hostname: datanode2
+  #   user: root
+  #   volumes:
+  #     - ./hadoop_datanode2:/opt/hadoop/data/datanode
+  #     - ./hadoop_config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+  #     - ./hadoop_config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+  #   environment:
+  #     - HADOOP_HOME=/opt/hadoop
+  #     - HDFS_NAMENODE_USER=root
+  #     - HDFS_DATANODE_USER=root
+  #     - HDFS_SECONDARYNAMENODE_USER=root
+  #     - CLUSTER_NAME=test
+  #     # - ENSURE_NAMENODE_DIR=/tmp/hadoop-root/dfs/name
+  #     # - HDFS_CONF_dfs_namenode_heartbeat_recheck-interval=10000 
+  #     # - HDFS_CONF_dfs_heartbeat_interval=1
+  #   depends_on:
+  #     - namenode
+  #   # command: >
+  #   #   bash -c "
+  #   #     sleep 15 &&
+  #   #     mkdir -p /opt/hadoop/data/datanode &&
+  #   #     chmod -R 777 /opt/hadoop/data/datanode &&
+  #   #     hdfs datanode
+  #   #   "
+  #   command: >
+  #     bash -c "
+  #       echo '=== Cleaning up and preparing storage ==='
+  #       # Удаляем всё, что могло остаться от неудачных запусков (кроме самой папки)
+  #       find /opt/hadoop/data/datanode -mindepth 1 -delete
+  #       echo '=== Waiting for NameNode ==='
+  #       sleep 15
+  #       mkdir -p dags logs spark hadoop_config hadoop_namenode hadoop_datanode  
+  #       chmod -R 777 logs hadoop_namenode hadoop_datanode
         
-        echo '=== Creating DataNode directories ==='
-        mkdir -p /opt/hadoop/data/datanode
-        chmod -R 777 /opt/hadoop/data/datanode
+  #       echo '=== Creating DataNode directories ==='
+  #       mkdir -p /opt/hadoop/data/datanode
+  #       chmod -R 777 /opt/hadoop/data/datanode
         
-        echo '=== Checking DataNode directory ==='
-        ls -la /opt/hadoop/data/datanode
+  #       echo '=== Checking DataNode directory ==='
+  #       ls -la /opt/hadoop/data/datanode
         
-        echo '=== Starting DataNode ==='
-        hdfs datanode
-      "
-    networks:
-      # - bigdata_network
-      - ml_network
+  #       echo '=== Starting DataNode ==='
+  #       hdfs datanode
+  #     "
+  #   networks:
+  #     # - bigdata_network
+  #     - ml_network
 
   spark-master:
     # image: apache/spark:3.5.3
@@ -436,6 +475,7 @@ services:
     volumes:
       - ./clickhouse_data:/var/lib/clickhouse
       - ./clickhouse_logs:/var/log/clickhouse
+      - ./disable_logs.xml:/etc/clickhouse-server/config.d/disable_logs.xml
     networks:
       # - bigdata_network
       - ml_network

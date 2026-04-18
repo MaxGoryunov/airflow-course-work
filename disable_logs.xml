@@ -1,0 +1,5 @@
+<clickhouse>
+    <query_log><enabled>false</enabled></query_log>
+    <metric_log><enabled>false</enabled></metric_log>
+    <trace_log><enabled>false</enabled></trace_log>
+</clickhouse>

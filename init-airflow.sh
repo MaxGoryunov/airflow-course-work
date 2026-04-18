@@ -8,7 +8,12 @@ echo "=== Initializing Airflow ==="
 # chmod -R 777 /opt/airflow/logs
 
 echo "Initializing database..."
-airflow db migrate
+if ! airflow db check-migrations; then
+    echo "Database is old. Migrating..."
+    airflow db migrate
+else
+    echo "Database is fresh. Skipping migration."
+fi
 
 if ! airflow users list | grep -q admin; then
     echo "Creating admin user..."
